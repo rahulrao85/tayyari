@@ -4,7 +4,7 @@ Measured on the production build (`npm run build`).
 
 | What                  | Result                                                                             |
 | --------------------- | ---------------------------------------------------------------------------------- |
-| First-load JavaScript | **93.5 kB gzipped** (budget 100 kB, enforced in CI by `scripts/bundle-budget.mjs`) |
+| First-load JavaScript | **93.7 kB gzipped** (budget 100 kB, enforced in CI by `scripts/bundle-budget.mjs`) |
 | Lazy-loaded tabs      | Change desk, Vendors and Ideas load on demand (about 8 kB gzipped together)        |
 | CSS                   | 4.7 kB gzipped                                                                     |
 | Web fonts             | none (system font stack)                                                           |
