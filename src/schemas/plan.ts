@@ -42,7 +42,10 @@ export const VendorCategorySchema = z.enum(VENDOR_CATEGORIES);
 export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const IsoDateSchema = z.string().check(
   z.regex(ISO_DATE, 'Use a YYYY-MM-DD date'),
-  z.refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)), 'Not a real date'),
+  z.refine((value) => {
+    const time = Date.parse(`${value}T00:00:00Z`);
+    return !Number.isNaN(time) && new Date(time).toISOString().startsWith(value);
+  }, 'Not a real date'),
 );
 
 export const MAX_BUDGET = 100_000_000;

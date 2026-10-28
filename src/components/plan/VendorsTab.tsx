@@ -77,11 +77,12 @@ function VendorCard({ need }: { need: VendorNeed }) {
                   <button
                     type="button"
                     className="btn btn-primary btn-small"
+                    aria-label={`Accept ${quote.vendor}`}
                     onClick={() => {
                       update(acceptQuote(plan, quote.id), `Accepted ${quote.vendor}'s quote.`);
                     }}
                   >
-                    Accept<span className="sr-only"> {quote.vendor}</span>
+                    Accept
                   </button>
                 ) : null}
                 <button
@@ -99,11 +100,12 @@ function VendorCard({ need }: { need: VendorNeed }) {
                 <button
                   type="button"
                   className="btn btn-secondary btn-small"
+                  aria-label={`Remove ${quote.vendor}`}
                   onClick={() => {
                     update(removeQuote(plan, quote.id), `Removed ${quote.vendor}'s quote.`);
                   }}
                 >
-                  Remove<span className="sr-only"> {quote.vendor}</span>
+                  Remove
                 </button>
               </div>
             </li>
@@ -128,12 +130,13 @@ function VendorCard({ need }: { need: VendorNeed }) {
         <button
           type="button"
           className="btn btn-secondary btn-small"
+          aria-label={`Add a quote for ${need.vendor}`}
           disabled={plan.quotes.length >= 30}
           onClick={() => {
             setAdding(true);
           }}
         >
-          Add a quote<span className="sr-only"> for {need.vendor}</span>
+          Add a quote
         </button>
       )}
     </article>

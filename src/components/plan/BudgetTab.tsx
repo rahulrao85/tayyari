@@ -121,6 +121,7 @@ export function BudgetTab() {
                 <button
                   type="button"
                   className="btn btn-secondary btn-small"
+                  aria-label={`Lock ${label(line.category)}`}
                   aria-pressed={line.locked}
                   onClick={() => {
                     update(
@@ -130,7 +131,6 @@ export function BudgetTab() {
                   }}
                 >
                   {line.locked ? '🔒 Locked' : 'Lock'}
-                  <span className="sr-only"> {label(line.category)}</span>
                 </button>
               </td>
             </tr>

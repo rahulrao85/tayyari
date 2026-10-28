@@ -12,7 +12,7 @@ export default defineConfig({
       include: ['src/**/*.{ts,tsx}', 'server/**/*.ts'],
       exclude: ['src/main.tsx', 'server/main.ts', 'src/vite-env.d.ts'],
       reporter: ['text-summary', 'text'],
-      thresholds: { lines: 95, statements: 95, functions: 95, branches: 90 },
+      thresholds: { lines: 99, statements: 98, functions: 98, branches: 92 },
     },
   },
 });

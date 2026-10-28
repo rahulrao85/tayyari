@@ -6,7 +6,7 @@ import type { Logger } from './log';
 import type { RateLimiter } from './store';
 
 /** Largest JSON body accepted by any route. */
-export const MAX_BODY_BYTES = 8 * 1024;
+const MAX_BODY_BYTES = 8 * 1024;
 
 /** A JSON error with a stable code. Never includes stack traces or user input. */
 export function fail(c: Context, status: ContentfulStatusCode, code: ErrorCode, message: string) {
@@ -40,7 +40,7 @@ export const securityHeaders = secureHeaders({
  * as the last `X-Forwarded-For` entry, so earlier (client-supplied) entries
  * are ignored.
  */
-export function clientKey(c: Context): string {
+function clientKey(c: Context): string {
   const forwarded = c.req.header('x-forwarded-for');
   const last = forwarded?.split(',').at(-1)?.trim();
   return last && last.length > 0 ? last.slice(0, 64) : 'direct';

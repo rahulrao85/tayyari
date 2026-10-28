@@ -5,6 +5,8 @@
 :root[data-theme='light'] {
   --text-muted: #5f6472;
   --text-secondary: #4a4f5c;
+  --primary-color: #1d4ed8;
+  --primary-hover: #1e40af;
   --success: #166534;
   --warning: #92400e;
   --danger: #b91c1c;
