@@ -18,6 +18,10 @@ export default tseslint.config(
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
       'no-console': ['error', { allow: ['error'] }],
       'max-lines': ['error', { max: 250, skipBlankLines: true, skipComments: true }],
+      complexity: ['error', 10],
+      'max-depth': ['error', 3],
+      'max-params': ['error', 4],
+      'no-nested-ternary': 'error',
     },
   },
   {

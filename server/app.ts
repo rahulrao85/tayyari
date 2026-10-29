@@ -37,6 +37,13 @@ export interface AppDeps {
   cache?: TtlCache<AiReply<unknown>>;
 }
 
+/** Model calls allowed per client per window, shared by every AI route. */
+const RATE_LIMIT = 20;
+const RATE_WINDOW_MS = 5 * 60_000;
+/** How long identical AI requests are answered from memory, and how many are kept. */
+const CACHE_TTL_MS = 10 * 60_000;
+const CACHE_ENTRIES = 500;
+
 const STATUS = { AI_UNAVAILABLE: 503, AI_RESPONSE_INVALID: 502, AI_TIMEOUT: 504 } as const;
 
 interface AiRoute<Req, Out> {
@@ -48,14 +55,48 @@ interface AiRoute<Req, Out> {
   finish?: (data: Out, body: Req) => Out;
 }
 
+/** Reads and validates the JSON body, or returns the error response to send. */
+async function validatedBody<Req>(
+  c: Context,
+  schema: z.ZodMiniType<Req>,
+): Promise<{ ok: true; data: Req } | { ok: false; response: Response }> {
+  const body = await readJson(c);
+  if (!body.ok) {
+    const response =
+      body.status === 413
+        ? fail(c, 413, 'PAYLOAD_TOO_LARGE', 'Request is too large.')
+        : fail(c, 400, 'BAD_REQUEST', 'Body must be valid JSON.');
+    return { ok: false, response };
+  }
+  const parsed = schema.safeParse(body.value);
+  if (parsed.success) return { ok: true, data: parsed.data };
+  const path = parsed.error.issues[0]?.path.join('.') ?? '';
+  const field = path.length > 0 ? path : 'body';
+  return { ok: false, response: fail(c, 400, 'BAD_REQUEST', `Check the field "${field}".`) };
+}
+
+/** Stable cache key for a route and its validated input. */
+function cacheKey(path: string, data: unknown): string {
+  return createHash('sha256')
+    .update(`${path}:${JSON.stringify(data)}`)
+    .digest('hex');
+}
+
+/** Maps a model failure to its status code; anything unexpected becomes a bare 500. */
+function modelFailure(c: Context, error: unknown, reportUnexpected: () => void): Response {
+  if (error instanceof ModelError) return fail(c, STATUS[error.code], error.code, error.message);
+  reportUnexpected();
+  return fail(c, 500, 'INTERNAL', 'Something went wrong.');
+}
+
 /**
  * Builds the Hono app: security headers everywhere, and for each AI route
  * guard → validate → cache → model → validate → respond.
  */
 export function createApp(deps: AppDeps): Hono {
   const app = new Hono();
-  const limiter = deps.limiter ?? new RateLimiter(20, 5 * 60_000);
-  const cache = deps.cache ?? new TtlCache<AiReply<unknown>>(10 * 60_000, 500);
+  const limiter = deps.limiter ?? new RateLimiter(RATE_LIMIT, RATE_WINDOW_MS);
+  const cache = deps.cache ?? new TtlCache<AiReply<unknown>>(CACHE_TTL_MS, CACHE_ENTRIES);
 
   app.use('*', securityHeaders);
   app.use('/api/*', requestLog(deps.log), async (c, next) => {
@@ -71,20 +112,9 @@ export function createApp(deps: AppDeps): Hono {
   function aiRoute<Req, Out>(path: string, route: AiRoute<Req, Out>): void {
     paths.add(path);
     app.post(path, sameOrigin, jsonOnly, rateLimit(limiter), async (c: Context) => {
-      const body = await readJson(c);
-      if (!body.ok) {
-        return body.status === 413
-          ? fail(c, 413, 'PAYLOAD_TOO_LARGE', 'Request is too large.')
-          : fail(c, 400, 'BAD_REQUEST', 'Body must be valid JSON.');
-      }
-      const parsed = route.request.safeParse(body.value);
-      if (!parsed.success) {
-        const field = parsed.error.issues[0]?.path.join('.') ?? 'body';
-        return fail(c, 400, 'BAD_REQUEST', `Check the field "${field || 'body'}".`);
-      }
-      const key = createHash('sha256')
-        .update(`${path}:${JSON.stringify(parsed.data)}`)
-        .digest('hex');
+      const parsed = await validatedBody(c, route.request);
+      if (!parsed.ok) return parsed.response;
+      const key = cacheKey(path, parsed.data);
       const hit = cache.get(key);
       if (hit) {
         c.header('X-Cache', 'HIT');
@@ -105,10 +135,9 @@ export function createApp(deps: AppDeps): Hono {
         c.header('X-Cache', 'MISS');
         return c.json(reply);
       } catch (error) {
-        if (error instanceof ModelError)
-          return fail(c, STATUS[error.code], error.code, error.message);
-        deps.log('ERROR', 'unexpected AI route error', { path });
-        return fail(c, 500, 'INTERNAL', 'Something went wrong.');
+        return modelFailure(c, error, () => {
+          deps.log('ERROR', 'unexpected AI route error', { path });
+        });
       }
     });
   }

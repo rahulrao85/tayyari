@@ -2,45 +2,11 @@ import { useState } from 'react';
 import { isQuoted, overBy, setLineAmount, toggleLock } from '../../engine/budget';
 import { categoryLabel } from '../../engine/data/categories';
 import { formatINR, parseINR } from '../../engine/money';
-import type { BudgetLine, Category } from '../../schemas/plan';
+import type { Category } from '../../schemas/plan';
 import { useActivePlan } from '../../state/PlanContext';
+import { CommitInput } from '../CommitInput';
 import { Badge } from '../common';
 import { TradeoffPanel } from './TradeoffPanel';
-
-/** One editable amount that commits on blur or Enter, so typing never thrashes the plan. */
-function AmountInput({
-  line,
-  label,
-  onCommit,
-}: {
-  line: BudgetLine;
-  label: string;
-  onCommit: (amount: number) => void;
-}) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const commit = () => {
-    if (draft === null) return;
-    const amount = parseINR(draft);
-    setDraft(null);
-    if (amount !== null && amount !== line.amount) onCommit(amount);
-  };
-  return (
-    <input
-      className="amount"
-      aria-label={`${label} amount in rupees`}
-      inputMode="numeric"
-      disabled={line.locked}
-      value={draft ?? String(line.amount)}
-      onChange={(event) => {
-        setDraft(event.target.value);
-      }}
-      onBlur={commit}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') commit();
-      }}
-    />
-  );
-}
 
 /** The budget: exact split, editable amounts, locks, and options when the plan is over budget. */
 export function BudgetTab() {
@@ -99,9 +65,13 @@ export function BudgetTab() {
                 ) : null}
               </th>
               <td data-label="Amount">
-                <AmountInput
-                  line={line}
-                  label={label(line.category)}
+                <CommitInput
+                  className="amount"
+                  aria-label={`${label(line.category)} amount in rupees`}
+                  inputMode="numeric"
+                  disabled={line.locked}
+                  value={line.amount}
+                  parse={parseINR}
                   onCommit={(amount) => {
                     change(line.category, amount);
                   }}

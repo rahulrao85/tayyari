@@ -12,6 +12,7 @@ import {
 import { OCCASIONS } from '../../schemas/plan';
 import { usePlanStore } from '../../state/PlanContext';
 import { describedBy, Field } from '../common';
+import { ErrorSummary, IntakeQuestions } from './IntakeNotes';
 import { PersonalFields } from './PersonalFields';
 
 const FIELD_ORDER: IntakeField[] = ['occasion', 'budget', 'guests', 'eventDate', 'priorities'];
@@ -49,35 +50,8 @@ export function IntakeForm({ draft, questions, followUp, onBack }: Props) {
   const errorList = FIELD_ORDER.filter((field) => errors[field]);
   return (
     <form className="card intake" onSubmit={submit} noValidate>
-      {questions.length > 0 || followUp ? (
-        <div className="questions">
-          <h2>{questions.length > 0 ? 'Just a few questions' : 'One more thing'}</h2>
-          <ul>
-            {questions.map((item) => (
-              <li key={item.field}>{item.question}</li>
-            ))}
-            {followUp ? <li>{followUp}</li> : null}
-          </ul>
-        </div>
-      ) : null}
-      {errorList.length > 0 ? (
-        <div
-          className="error-summary"
-          ref={summary}
-          tabIndex={-1}
-          role="alert"
-          aria-labelledby="error-summary-title"
-        >
-          <h2 id="error-summary-title">Please fix {errorList.length === 1 ? 'this' : 'these'}</h2>
-          <ul>
-            {errorList.map((field) => (
-              <li key={field}>
-                <a href={`#intake-${field}`}>{errors[field]}</a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      <IntakeQuestions questions={questions} followUp={followUp} />
+      <ErrorSummary fields={errorList} errors={errors} ref={summary} />
 
       <fieldset
         id="intake-occasion"

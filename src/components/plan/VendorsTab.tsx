@@ -8,6 +8,16 @@ import { useActivePlan } from '../../state/PlanContext';
 import { Badge } from '../common';
 import { QuoteForm } from './QuoteForm';
 
+/** Where the family is with one vendor, as a badge. */
+function vendorStatus(
+  booked: boolean,
+  quotes: number,
+): { tone: 'ok' | 'warn' | 'muted'; label: string } {
+  if (booked) return { tone: 'ok', label: 'Quote accepted' };
+  if (quotes > 0) return { tone: 'warn', label: `${String(quotes)} quote(s) to compare` };
+  return { tone: 'muted', label: 'Not started' };
+}
+
 function VendorCard({ need }: { need: VendorNeed }) {
   const { plan, update } = useActivePlan();
   const [adding, setAdding] = useState(false);
@@ -19,6 +29,7 @@ function VendorCard({ need }: { need: VendorNeed }) {
     ...(need.category === 'venue' ? mixQuestions(plan.guestMix) : []),
   ];
   const headingId = `vendor-${need.category}`;
+  const status = vendorStatus(Boolean(booked), rows.length);
 
   async function copy(id: string, text: string) {
     try {
@@ -33,13 +44,7 @@ function VendorCard({ need }: { need: VendorNeed }) {
     <article className="card vendor" aria-labelledby={headingId}>
       <header className="vendor-head">
         <h3 id={headingId}>{need.vendor}</h3>
-        {booked ? (
-          <Badge tone="ok">Quote accepted</Badge>
-        ) : rows.length > 0 ? (
-          <Badge tone="warn">{rows.length} quote(s) to compare</Badge>
-        ) : (
-          <Badge tone="muted">Not started</Badge>
-        )}
+        <Badge tone={status.tone}>{status.label}</Badge>
       </header>
       <p className="hint">Budget line: {categoryLabel(need.category, plan.occasion)}</p>
       <details>

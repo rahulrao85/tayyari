@@ -4,7 +4,7 @@ import * as z from 'zod/mini';
 export const str = (min: number, max: number) =>
   z.string().check(z.minLength(min), z.maxLength(max));
 export const int = (min: number, max: number) => z.int().check(z.minimum(min), z.maximum(max));
-export const num = (min: number, max: number) => z.number().check(z.minimum(min), z.maximum(max));
+const num = (min: number, max: number) => z.number().check(z.minimum(min), z.maximum(max));
 export const list = <T extends z.core.$ZodType>(item: T, max: number) =>
   z.array(item).check(z.maxLength(max));
 
@@ -39,7 +39,7 @@ const VENDOR_CATEGORIES = [
 ] as const;
 export const VendorCategorySchema = z.enum(VENDOR_CATEGORIES);
 
-export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const IsoDateSchema = z.string().check(
   z.regex(ISO_DATE, 'Use a YYYY-MM-DD date'),
   z.refine((value) => {
@@ -50,6 +50,7 @@ export const IsoDateSchema = z.string().check(
 
 export const MAX_BUDGET = 100_000_000;
 export const MAX_GUESTS = 5000;
+export const MAX_TASK_DELAY_DAYS = 365;
 
 const BudgetLineSchema = z.object({
   category: CategorySchema,
@@ -60,14 +61,12 @@ export type BudgetLine = z.infer<typeof BudgetLineSchema>;
 
 const TaskProgressSchema = z.object({
   done: z.boolean(),
-  delayDays: int(0, 365),
+  delayDays: int(0, MAX_TASK_DELAY_DAYS),
 });
 export type TaskProgress = z.infer<typeof TaskProgressSchema>;
 
-export const QuoteSchema = z.object({
-  id: str(1, 40),
-  category: VendorCategorySchema,
-  vendor: str(1, 60),
+/** What a vendor quote says about price and terms; shared by saved quotes and AI extraction. */
+export const QuoteTermsSchema = z.object({
   pricing: z.enum(['per_guest', 'flat']),
   amount: int(0, MAX_BUDGET),
   guestMinimum: z.nullable(int(1, MAX_GUESTS)),
@@ -75,6 +74,13 @@ export const QuoteSchema = z.object({
   advancePercent: z.nullable(num(0, 100)),
   cancellationPolicy: z.nullable(str(0, 200)),
   inclusions: list(str(0, 60), 10),
+});
+
+/** A saved quote: the terms plus who it is from and whether the family accepted it. */
+export const QuoteSchema = z.extend(QuoteTermsSchema, {
+  id: str(1, 40),
+  category: VendorCategorySchema,
+  vendor: str(1, 60),
   accepted: z.boolean(),
 });
 export type Quote = z.infer<typeof QuoteSchema>;
@@ -85,25 +91,6 @@ export const GuestMixSchema = z.object({
   accessibility: z.boolean(),
 });
 export type GuestMix = z.infer<typeof GuestMixSchema>;
-
-export const PlanSchema = z.object({
-  occasion: OccasionSchema,
-  title: str(1, 80),
-  eventDate: IsoDateSchema,
-  createdOn: IsoDateSchema,
-  budget: int(1000, MAX_BUDGET),
-  guests: int(1, MAX_GUESTS),
-  perGuest: int(0, 100_000),
-  priorities: list(CategorySchema, 3),
-  vibe: str(0, 120),
-  mustHaves: list(str(0, 80), 6),
-  guestMix: GuestMixSchema,
-  dietary: list(str(0, 40), 6),
-  lines: z.array(BudgetLineSchema).check(z.length(CATEGORIES.length)),
-  tasks: z.record(str(0, 40), TaskProgressSchema),
-  quotes: list(QuoteSchema, 30),
-});
-export type Plan = z.infer<typeof PlanSchema>;
 
 /** What the family tells us before a plan exists. */
 export const IntakeSchema = z.object({
@@ -119,6 +106,16 @@ export const IntakeSchema = z.object({
   dietary: list(str(0, 40), 6),
 });
 export type Intake = z.infer<typeof IntakeSchema>;
+
+/** A plan is the intake plus everything Tayyari derives and tracks for it. */
+export const PlanSchema = z.extend(IntakeSchema, {
+  createdOn: IsoDateSchema,
+  perGuest: int(0, 100_000),
+  lines: z.array(BudgetLineSchema).check(z.length(CATEGORIES.length)),
+  tasks: z.record(str(0, 40), TaskProgressSchema),
+  quotes: list(QuoteSchema, 30),
+});
+export type Plan = z.infer<typeof PlanSchema>;
 
 /** A requested change to a plan, from the Change Desk. Every field is optional. */
 export const ChangeSetSchema = z.object({

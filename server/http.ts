@@ -49,7 +49,8 @@ function clientKey(c: Context): string {
 /** Only our own pages may call the API, so other sites cannot spend the AI quota. */
 export const sameOrigin: MiddlewareHandler = async (c, next) => {
   const origin = c.req.header('origin');
-  const host = c.req.header('x-forwarded-host') ?? c.req.header('host');
+  // Only the Host header: X-Forwarded-Host can be set by any client.
+  const host = c.req.header('host');
   let allowed = false;
   try {
     allowed = origin !== undefined && host !== undefined && new URL(origin).host === host;

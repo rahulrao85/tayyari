@@ -35,8 +35,7 @@ const UNIT: Record<string, number> = {
 };
 
 /** Matches `₹8,00,000`, `8 lakh`, `8.5L`, `2 crore`, `50k`, `Rs 60000`. */
-const MONEY_PATTERN =
-  /(?:₹|rs\.?|inr)?\s*(\d[\d,]*(?:\.\d+)?)\s*(lakhs?|lacs?|l|crores?|cr|k|thousand)?(?![a-z])/i;
+const MONEY_PATTERN = /(\d[\d,]{0,15}(?:\.\d{1,3})?)\s?([a-z]{1,8})?/i;
 
 /**
  * Reads an Indian-style amount from text. Returns `null` when there is none.
@@ -46,7 +45,7 @@ export function parseINR(text: string): number | null {
   const match = MONEY_PATTERN.exec(text);
   if (!match?.[1]) return null;
   const value = Number(match[1].replace(/,/g, ''));
-  const unit = match[2] ? (UNIT[match[2].toLowerCase()] ?? 1) : 1;
+  const unit = UNIT[match[2]?.toLowerCase() ?? ''] ?? 1;
   const amount = Math.round(value * unit);
   return Number.isFinite(amount) ? amount : null;
 }

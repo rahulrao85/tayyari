@@ -8,6 +8,13 @@ import { Field, Working } from '../common';
 
 type VendorCategory = Quote['category'];
 
+/** Whether a quote says GST is included (true), extra (false) or does not say (null). */
+function readGst(text: string): boolean | null {
+  if (/gst\s?(?:incl|included)|inclusive of gst/i.test(text)) return true;
+  if (/\+\s?gst|gst\s?extra|plus gst/i.test(text)) return false;
+  return null;
+}
+
 /** Rule-based reading for when AI is unavailable: an amount and whether it is per plate. */
 export function roughQuote(text: string): QuoteExtract {
   const perGuest = /per\s*(plate|head|person|guest|pax)|\/\s*plate/i.test(text);
@@ -17,11 +24,7 @@ export function roughQuote(text: string): QuoteExtract {
     pricing: perGuest ? 'per_guest' : 'flat',
     amount: parseINR(text) ?? 0,
     guestMinimum: minimum?.[1] ? Number(minimum[1]) : null,
-    taxIncluded: /gst\s*(incl|included)|inclusive of gst/i.test(text)
-      ? true
-      : /\+\s*gst|gst\s*extra|plus gst/i.test(text)
-        ? false
-        : null,
+    taxIncluded: readGst(text),
     advancePercent: null,
     cancellationPolicy: null,
     inclusions: [],

@@ -12,6 +12,10 @@ interface Turn {
   source?: string;
 }
 
+/** How much of the conversation is sent with each question (matches the API's limits). */
+const HISTORY_TURNS = 6;
+const HISTORY_TEXT_LENGTH = 600;
+
 const SUGGESTIONS = [
   'Kitna kharcha bacha hai?',
   'What should we book first?',
@@ -30,8 +34,8 @@ export function AskPanel() {
     if (!trimmed) return;
     const facts = planFacts(plan, schedule);
     const history = turns
-      .slice(-6)
-      .map(({ role, text: said }) => ({ role, text: said.slice(0, 600) }));
+      .slice(-HISTORY_TURNS)
+      .map(({ role, text: said }) => ({ role, text: said.slice(0, HISTORY_TEXT_LENGTH) }));
     setTurns((current) => [...current, { role: 'user', text: trimmed }]);
     setQuestion('');
     const result = await ask.run({ question: trimmed, facts, history });

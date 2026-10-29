@@ -79,8 +79,10 @@ const ASKS: [RegExp, (facts: PlanFacts) => string][] = [
   ],
   [
     /guest|people|log|headcount/,
-    (facts) =>
-      `You are planning for ${facts.guests} guests${facts.guestNotes.length ? ` (${facts.guestNotes.join(', ')})` : ''}.`,
+    (facts) => {
+      const notes = facts.guestNotes.length > 0 ? ` (${facts.guestNotes.join(', ')})` : '';
+      return `You are planning for ${String(facts.guests)} guests${notes}.`;
+    },
   ],
 ];
 

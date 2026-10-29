@@ -1,4 +1,3 @@
-import { ISO_DATE } from '../schemas/plan';
 import { addDays, fromDay, toDay } from './dates';
 import { parseINR } from './money';
 
@@ -60,38 +59,69 @@ function nextOccurrence(month: number, day: number, today: string): string | nul
 
 const PART_DAY: Record<string, number> = { early: 5, mid: 15, late: 25, end: 28 };
 
+/** A day and month read from text, with the year if one was given. */
+interface DayMonth {
+  day: number;
+  month: string;
+  year: string | undefined;
+}
+
+const ISO_IN_TEXT = /\b(\d{4})-(\d{2})-(\d{2})\b/;
+const RELATIVE = new RegExp(String.raw`\bin\s{1,3}${COUNT}\s{1,3}(day|week|month)s?\b`);
+const DAY_FIRST = new RegExp(
+  String.raw`\b(\d{1,2})(?:st|nd|rd|th)?\s{1,3}(?:of\s{1,3})?${MONTH}\b,?\s{0,3}(\d{4})?`,
+);
+const MONTH_FIRST = new RegExp(
+  String.raw`\b${MONTH}\s{1,3}(\d{1,2})(?:st|nd|rd|th)?\b,?\s{0,3}(\d{4})?`,
+);
+const PART_OF_MONTH = new RegExp(
+  String.raw`\b(early|mid|late|end)(?:\s{1,3}of)?[\s-]{1,3}${MONTH}\b\s{0,3}(\d{4})?`,
+);
+
+/** "2027-02-14" → that date, if it is real. */
+function readIsoDate(text: string): string | null {
+  const match = ISO_IN_TEXT.exec(text);
+  if (!match) return null;
+  return isoFrom(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+/** "in 3 weeks" → today plus 21 days. */
+function readRelativeDate(text: string, today: string): string | null {
+  const match = RELATIVE.exec(text);
+  if (!match?.[1] || !match[2]) return null;
+  return addDays(today, readCount(match[1]) * unitDays(match[2]));
+}
+
+/** Each date shape and how to read its captures, tried in order. */
+const DAY_MONTH_READERS: [RegExp, (match: RegExpExecArray) => DayMonth | null][] = [
+  [DAY_FIRST, (m) => (m[1] && m[2] ? { day: Number(m[1]), month: m[2], year: m[3] } : null)],
+  [MONTH_FIRST, (m) => (m[1] && m[2] ? { day: Number(m[2]), month: m[1], year: m[3] } : null)],
+  [
+    PART_OF_MONTH,
+    (m) => (m[1] && m[2] ? { day: PART_DAY[m[1]] ?? 15, month: m[2], year: m[3] } : null),
+  ],
+];
+
+/** "15 March", "March 15" or "mid-Feb", each with an optional year. */
+function readDayMonth(text: string): DayMonth | null {
+  for (const [pattern, read] of DAY_MONTH_READERS) {
+    const match = pattern.exec(text);
+    const found = match ? read(match) : null;
+    if (found) return found;
+  }
+  return null;
+}
+
 /**
  * Reads a date from free text: ISO, "15 March 2027", "March 15", "mid-Feb",
  * "end of Dec", "in 3 months". Returns `null` when unsure.
  */
 export function parseDate(text: string, today: string): string | null {
   const lower = text.toLowerCase();
-  const iso = /\b(\d{4}-\d{2}-\d{2})\b/.exec(lower);
-  if (iso?.[1] && ISO_DATE.test(iso[1]))
-    return isoFrom(
-      Number(iso[1].slice(0, 4)),
-      Number(iso[1].slice(5, 7)) - 1,
-      Number(iso[1].slice(8)),
-    );
-  const relative = new RegExp(String.raw`\bin\s+${COUNT}\s+(day|week|month)s?\b`).exec(lower);
-  if (relative?.[1] && relative[2])
-    return addDays(today, readCount(relative[1]) * unitDays(relative[2]));
-  const dayFirst = new RegExp(
-    String.raw`\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?${MONTH}\b,?\s*(\d{4})?`,
-  ).exec(lower);
-  const monthFirst = new RegExp(
-    String.raw`\b${MONTH}\s+(\d{1,2})(?:st|nd|rd|th)?\b,?\s*(\d{4})?`,
-  ).exec(lower);
-  const part = new RegExp(
-    String.raw`\b(early|mid|late|end)(?:\s+of)?[\s-]+${MONTH}\b\s*(\d{4})?`,
-  ).exec(lower);
-  let found: { day: number; month: string; year: string | undefined } | null = null;
-  if (dayFirst?.[1] && dayFirst[2])
-    found = { day: Number(dayFirst[1]), month: dayFirst[2], year: dayFirst[3] };
-  else if (monthFirst?.[1] && monthFirst[2])
-    found = { day: Number(monthFirst[2]), month: monthFirst[1], year: monthFirst[3] };
-  else if (part?.[1] && part[2])
-    found = { day: PART_DAY[part[1]] ?? 15, month: part[2], year: part[3] };
+  if (ISO_IN_TEXT.test(lower)) return readIsoDate(lower);
+  const relative = readRelativeDate(lower, today);
+  if (relative) return relative;
+  const found = readDayMonth(lower);
   if (!found) return null;
   const month = MONTHS.indexOf(found.month.slice(0, 3));
   return found.year

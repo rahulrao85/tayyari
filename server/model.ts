@@ -45,6 +45,29 @@ export interface ChainOptions {
   now?: () => number;
 }
 
+/** Default per-call timeout and how long a failing model is skipped. */
+const DEFAULT_TIMEOUT_MS = 20_000;
+const DEFAULT_COOLDOWN_MS = 60_000;
+
+const cancelled = () => new ModelError('AI_TIMEOUT', 'Request cancelled');
+
+/** Maps a thrown error from one model call to a stable error code. */
+function toModelError(error: unknown): ModelError {
+  if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+    return new ModelError('AI_TIMEOUT', 'Model did not answer in time');
+  }
+  if (error instanceof SyntaxError) {
+    return new ModelError('AI_RESPONSE_INVALID', 'Model output was not JSON');
+  }
+  return new ModelError('AI_UNAVAILABLE', 'Model call failed');
+}
+
+/** Combines the per-call timeout with the caller's own abort signal, if any. */
+function callSignal(timeoutMs: number, caller: AbortSignal | undefined): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return caller ? AbortSignal.any([timeout, caller]) : timeout;
+}
+
 /**
  * Tries each model in order. A model that times out, is overloaded or out of
  * quota is set aside for a cooldown so later requests skip straight past it.
@@ -52,40 +75,53 @@ export interface ChainOptions {
  * output is never returned.
  */
 export function createModelChain(options: ChainOptions): ModelClient {
-  const { models, call, log, timeoutMs = 20_000, cooldownMs = 60_000, now = Date.now } = options;
+  const {
+    models,
+    call,
+    log,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    cooldownMs = DEFAULT_COOLDOWN_MS,
+    now = Date.now,
+  } = options;
   const resting = new Map<string, number>();
+
+  /** Models not cooling down; if every model is resting, try them all anyway. */
+  function candidates(): readonly string[] {
+    const ready = models.filter((model) => (resting.get(model) ?? 0) <= now());
+    return ready.length > 0 ? ready : models;
+  }
+
+  /** One call to one model: the valid data, or the error that explains why not. */
+  async function attempt<T>(
+    model: string,
+    request: ModelRequest<T>,
+    jsonSchema: unknown,
+  ): Promise<{ data: T } | { error: ModelError }> {
+    try {
+      const text = await call(model, request, jsonSchema, callSignal(timeoutMs, request.signal));
+      const parsed = request.schema.safeParse(JSON.parse(text));
+      if (parsed.success) return { data: parsed.data };
+      return {
+        error: new ModelError('AI_RESPONSE_INVALID', 'Model output did not match the schema'),
+      };
+    } catch (error) {
+      if (request.signal?.aborted) throw cancelled();
+      const failure = toModelError(error);
+      if (failure.code !== 'AI_RESPONSE_INVALID') resting.set(model, now() + cooldownMs);
+      return { error: failure };
+    }
+  }
 
   return {
     async generate<T>(request: ModelRequest<T>) {
       const jsonSchema = z.toJSONSchema(request.schema, { target: 'draft-7' });
-      const ready = models.filter((model) => (resting.get(model) ?? 0) <= now());
-      const order = ready.length > 0 ? ready : models;
-      let last: ModelError = new ModelError('AI_UNAVAILABLE', 'No model configured');
-      for (const model of order) {
-        if (request.signal?.aborted) throw new ModelError('AI_TIMEOUT', 'Request cancelled');
-        const signals = [
-          AbortSignal.timeout(timeoutMs),
-          ...(request.signal ? [request.signal] : []),
-        ];
-        try {
-          const text = await call(model, request, jsonSchema, AbortSignal.any(signals));
-          const parsed = request.schema.safeParse(JSON.parse(text));
-          if (parsed.success) return { data: parsed.data, model };
-          last = new ModelError('AI_RESPONSE_INVALID', 'Model output did not match the schema');
-          log('WARNING', 'model output invalid', { model });
-        } catch (error) {
-          if (request.signal?.aborted) throw new ModelError('AI_TIMEOUT', 'Request cancelled');
-          const timedOut =
-            error instanceof Error &&
-            (error.name === 'TimeoutError' || error.name === 'AbortError');
-          last = timedOut
-            ? new ModelError('AI_TIMEOUT', 'Model did not answer in time')
-            : error instanceof SyntaxError
-              ? new ModelError('AI_RESPONSE_INVALID', 'Model output was not JSON')
-              : new ModelError('AI_UNAVAILABLE', 'Model call failed');
-          if (last.code !== 'AI_RESPONSE_INVALID') resting.set(model, now() + cooldownMs);
-          log('WARNING', 'model call failed', { model, code: last.code });
-        }
+      let last = new ModelError('AI_UNAVAILABLE', 'No model configured');
+      for (const model of candidates()) {
+        if (request.signal?.aborted) throw cancelled();
+        const outcome = await attempt(model, request, jsonSchema);
+        if ('data' in outcome) return { data: outcome.data, model };
+        last = outcome.error;
+        log('WARNING', 'model call failed', { model, code: last.code });
       }
       throw last;
     },

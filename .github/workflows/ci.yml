@@ -23,6 +23,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run lint:unused
+      - run: npm run lint:dupes
       - run: npm run coverage
       - run: npm run build
       - run: npm run budget:bundle

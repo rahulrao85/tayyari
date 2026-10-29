@@ -91,6 +91,12 @@ describe('guards', () => {
     expect(
       (await post(app, '/api/intake', {}, { ...HEADERS, origin: 'https://evil.example' })).status,
     ).toBe(403);
+    const spoofed = {
+      ...HEADERS,
+      origin: 'https://evil.example',
+      'x-forwarded-host': 'evil.example',
+    };
+    expect((await post(app, '/api/intake', {}, spoofed)).status).toBe(403);
     expect(
       (
         await post(

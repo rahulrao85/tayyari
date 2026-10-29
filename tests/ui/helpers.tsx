@@ -30,7 +30,7 @@ export function mockApi(handlers: Record<string, Handler> = {}) {
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     const handler = handlers[url];
     const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null;
-    const reply = handler ? (typeof handler === 'function' ? handler(body) : handler) : fail();
+    const reply = typeof handler === 'function' ? handler(body) : (handler ?? fail());
     return Promise.resolve(new Response(JSON.stringify(reply.json), { status: reply.status }));
   });
   vi.stubGlobal('fetch', fetchMock);

@@ -54,26 +54,45 @@ function readGuests(text: string): ChangeSet['guests'] {
   return set?.[1] ? { mode: 'set', count: Number(set[1]) } : null;
 }
 
-function readDate(text: string, today: string): ChangeSet['date'] {
-  const shift = re(
-    String.raw`${COUNT}\s+(day|week|month)s?\s+(earlier|sooner|before|ahead|early|later|after|late)`,
-  ).exec(text);
-  if (shift?.[1] && shift[2] && shift[3]) {
-    const days = readCount(shift[1]) * unitDays(shift[2]);
-    return { mode: 'shift', days: /later|after|late/.test(shift[3]) ? days : -days };
-  }
-  const verb = re(
-    String.raw`(prepone|bring\s+(?:it\s+)?forward|advance|postpone|delay|push(?:\s+it)?(?:\s+back)?)\s+(?:it\s+|the\s+event\s+)?by\s+${COUNT}\s+(day|week|month)s?`,
-  ).exec(text);
-  if (verb?.[1] && verb[2] && verb[3]) {
-    const days = readCount(verb[2]) * unitDays(verb[3]);
-    return { mode: 'shift', days: /postpone|delay|push/.test(verb[1]) ? days : -days };
-  }
-  const moved = re(
-    String.raw`(?:move|shift|change|reschedule)\w*\s+(?:it\s+|the\s+(?:date|event)\s+)?to\s+(.+)`,
-  ).exec(text);
-  const iso = moved?.[1] ? parseDate(moved[1], today) : null;
+const RELATIVE_SHIFT = re(
+  String.raw`${COUNT}\s{1,3}(day|week|month)s?\s{1,3}(earlier|sooner|before|ahead|early|later|after|late)`,
+);
+const VERB_SHIFT = re(
+  String.raw`(prepone|bring\s{1,3}(?:it\s{1,3})?forward|advance|postpone|delay|push(?:\s{1,3}it)?(?:\s{1,3}back)?)\s{1,3}(?:it\s{1,3}|the\s{1,3}event\s{1,3})?by\s{1,3}${COUNT}\s{1,3}(day|week|month)s?`,
+);
+const MOVED_TO = re(
+  String.raw`(?:move|shift|change|reschedule)\w{0,3}\s{1,3}(?:it\s{1,3}|the\s{1,3}(?:date|event)\s{1,3})?to\s{1,3}(.{1,60})`,
+);
+
+/** A shift of `count` units, negative when the direction word means earlier. */
+function shiftBy(count: string, unit: string, later: boolean): ChangeSet['date'] {
+  const days = readCount(count) * unitDays(unit);
+  return { mode: 'shift', days: later ? days : -days };
+}
+
+/** "2 weeks earlier", "3 days later". */
+function readRelativeShift(text: string): ChangeSet['date'] {
+  const match = RELATIVE_SHIFT.exec(text);
+  if (!match?.[1] || !match[2] || !match[3]) return null;
+  return shiftBy(match[1], match[2], /later|after|late/.test(match[3]));
+}
+
+/** "postpone it by 10 days", "prepone by 1 week". */
+function readVerbShift(text: string): ChangeSet['date'] {
+  const match = VERB_SHIFT.exec(text);
+  if (!match?.[1] || !match[2] || !match[3]) return null;
+  return shiftBy(match[2], match[3], /postpone|delay|push/.test(match[1]));
+}
+
+/** "move it to 15 March 2027". */
+function readMovedTo(text: string, today: string): ChangeSet['date'] {
+  const target = MOVED_TO.exec(text)?.[1];
+  const iso = target ? parseDate(target, today) : null;
   return iso ? { mode: 'set', iso } : null;
+}
+
+function readDate(text: string, today: string): ChangeSet['date'] {
+  return readRelativeShift(text) ?? readVerbShift(text) ?? readMovedTo(text, today);
 }
 
 /**

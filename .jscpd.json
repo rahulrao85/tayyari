@@ -1,0 +1,8 @@
+{
+  "path": ["src", "server"],
+  "minLines": 5,
+  "minTokens": 40,
+  "threshold": 1,
+  "reporters": ["console"],
+  "silent": true
+}

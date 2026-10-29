@@ -7,10 +7,10 @@ import {
   MAX_BUDGET,
   MAX_GUESTS,
   OccasionSchema,
+  QuoteTermsSchema,
   VendorCategorySchema,
   int,
   list,
-  num,
   str,
 } from './plan';
 
@@ -52,16 +52,8 @@ export const ChangeExtractSchema = z.extend(ChangeSetSchema, { summary: str(0, 2
 
 // ---------- vendor quote ----------
 export const QuoteRequestSchema = z.object({ text: text(2000), category: VendorCategorySchema });
-export const QuoteExtractSchema = z.object({
-  vendor: z.nullable(str(0, 60)),
-  pricing: z.enum(['per_guest', 'flat']),
-  amount: int(0, MAX_BUDGET),
-  guestMinimum: z.nullable(int(1, MAX_GUESTS)),
-  taxIncluded: z.nullable(z.boolean()),
-  advancePercent: z.nullable(num(0, 100)),
-  cancellationPolicy: z.nullable(str(0, 200)),
-  inclusions: shortList(10, 60),
-});
+/** The terms of a pasted quote; the vendor name is optional because quotes often omit it. */
+export const QuoteExtractSchema = z.extend(QuoteTermsSchema, { vendor: z.nullable(str(0, 60)) });
 export type QuoteExtract = z.infer<typeof QuoteExtractSchema>;
 
 // ---------- ideas ----------

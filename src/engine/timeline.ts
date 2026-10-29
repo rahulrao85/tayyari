@@ -1,4 +1,4 @@
-import type { Plan, TaskProgress } from '../schemas/plan';
+import { MAX_TASK_DELAY_DAYS, type Plan, type TaskProgress } from '../schemas/plan';
 import { TASK_TEMPLATES, type TaskTemplate } from './data/tasks';
 import { addDays, daysBetween } from './dates';
 
@@ -66,6 +66,45 @@ function statusOf(
   return left <= SOON_DAYS ? 'soon' : 'on-track';
 }
 
+/** Where a task landed, as days relative to the event (negative = before it). */
+interface Placement {
+  title: string;
+  planned: number;
+  due: number;
+}
+
+/**
+ * The share of each lead time kept: 1 when the runway was long enough on the
+ * day the plan was made, less when the event was closer than the longest lead.
+ */
+function compressionFactor(runway: number, longest: number): number {
+  return runway < longest ? Math.max(runway, 0) / longest : 1;
+}
+
+/**
+ * The task's due day after its own delay, pushed later if any dependency
+ * slipped, keeping the gap it originally had to that dependency.
+ */
+function dueAfterDependencies(
+  template: TaskTemplate,
+  planned: number,
+  delayDays: number,
+  placed: ReadonlyMap<string, Placement>,
+): { due: number; pushedBy: string[] } {
+  let due = planned + delayDays;
+  const pushedBy: string[] = [];
+  for (const id of template.dependsOn) {
+    const dependency = placed.get(id);
+    if (!dependency) continue;
+    const earliest = dependency.due + (planned - dependency.planned);
+    if (earliest > due) {
+      due = earliest;
+      pushedBy.push(dependency.title);
+    }
+  }
+  return { due, pushedBy };
+}
+
 /**
  * Places every task on the calendar. When the event was closer than the
  * longest lead time on the day the plan was made, all lead times shrink by the
@@ -78,50 +117,37 @@ export function buildSchedule(
   today: string,
   templates: readonly TaskTemplate[] = TASK_TEMPLATES[plan.occasion],
 ): Schedule {
-  const daysToGo = daysBetween(today, plan.eventDate);
   const runway = daysBetween(plan.createdOn, plan.eventDate);
   const longest = Math.max(...templates.map((template) => template.leadDays));
-  const compressed = runway < longest;
-  const factor = compressed ? Math.max(runway, 0) / longest : 1;
-  const planned = new Map<string, number>();
-  const actual = new Map<string, number>();
-  const result = new Map<string, ScheduledTask>();
+  const factor = compressionFactor(runway, longest);
+  const placed = new Map<string, Placement>();
+  const tasks: ScheduledTask[] = [];
 
   for (const template of topoSort(templates)) {
-    const lead = Math.floor(template.leadDays * factor);
-    const base = -lead;
+    const planned = -Math.floor(template.leadDays * factor);
     const progress = plan.tasks[template.id];
-    let due = base + (progress?.delayDays ?? 0);
-    const pushedBy: string[] = [];
-    for (const id of template.dependsOn) {
-      const depPlanned = planned.get(id) ?? base;
-      const depActual = actual.get(id) ?? depPlanned;
-      const earliest = depActual + (base - depPlanned);
-      if (earliest > due) {
-        due = earliest;
-        pushedBy.push(result.get(id)?.title ?? id);
-      }
-    }
-    planned.set(template.id, base);
-    actual.set(template.id, due);
+    const { due, pushedBy } = dueAfterDependencies(
+      template,
+      planned,
+      progress?.delayDays ?? 0,
+      placed,
+    );
+    placed.set(template.id, { title: template.title, planned, due });
     const dueIso = addDays(plan.eventDate, due);
-    result.set(template.id, {
+    tasks.push({
       id: template.id,
       title: template.title,
       category: template.category,
       dependsOn: template.dependsOn,
-      plannedDue: addDays(plan.eventDate, base),
+      plannedDue: addDays(plan.eventDate, planned),
       due: dueIso,
-      pushedDays: due - base,
+      pushedDays: due - planned,
       pushedBy,
       status: statusOf(dueIso, progress, today, plan.eventDate),
     });
   }
-  const tasks = templates
-    .map((template) => result.get(template.id))
-    .filter((task) => task !== undefined);
   tasks.sort((a, b) => a.due.localeCompare(b.due) || a.title.localeCompare(b.title));
-  return { tasks, daysToGo, compressed };
+  return { tasks, daysToGo: daysBetween(today, plan.eventDate), compressed: factor < 1 };
 }
 
 /** Marks a task done or not done. */
@@ -130,10 +156,13 @@ export function setTaskDone(plan: Plan, id: string, done: boolean): Plan {
   return { ...plan, tasks: { ...plan.tasks, [id]: { ...current, done } } };
 }
 
+/** Longest delay a single task can record, in days. */
+export const MAX_DELAY_DAYS = MAX_TASK_DELAY_DAYS;
+
 /** Records that a task will slip by `delayDays`. */
 export function setTaskDelay(plan: Plan, id: string, delayDays: number): Plan {
   const current = plan.tasks[id] ?? { done: false, delayDays: 0 };
-  const days = Math.min(365, Math.max(0, Math.round(delayDays)));
+  const days = Math.min(MAX_DELAY_DAYS, Math.max(0, Math.round(delayDays)));
   return { ...plan, tasks: { ...plan.tasks, [id]: { ...current, delayDays: days } } };
 }
 

@@ -1,11 +1,15 @@
 import { googleCalendarUrl, scheduleToIcs } from '../../engine/calendar';
 import { RUN_SHEET } from '../../engine/data/tasks';
 import { daysBetween, formatDate, relativeDays } from '../../engine/dates';
-import { setTaskDelay, setTaskDone, type TaskStatus } from '../../engine/timeline';
-import { useState } from 'react';
+import { MAX_DELAY_DAYS, setTaskDelay, setTaskDone, type TaskStatus } from '../../engine/timeline';
 import { downloadFile } from '../../lib/download';
 import { useActivePlan } from '../../state/PlanContext';
+import { CommitInput } from '../CommitInput';
 import { Badge } from '../common';
+
+/** Whole days between 0 and the maximum delay; anything unreadable counts as 0. */
+const parseDelay = (text: string) =>
+  Math.min(MAX_DELAY_DAYS, Math.max(0, Math.round(Number(text) || 0)));
 
 const STATUS: Record<
   TaskStatus,
@@ -17,42 +21,6 @@ const STATUS: Record<
   soon: { tone: 'warn', label: 'Due soon' },
   'on-track': { tone: 'info', label: 'On track' },
 };
-
-/** Days of delay, committed on blur or Enter so each keystroke is not a new version. */
-function DelayInput({
-  id,
-  value,
-  onCommit,
-}: {
-  id: string;
-  value: number;
-  onCommit: (days: number) => void;
-}) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const commit = () => {
-    if (draft === null) return;
-    const days = Math.min(365, Math.max(0, Math.round(Number(draft) || 0)));
-    setDraft(null);
-    if (days !== value) onCommit(days);
-  };
-  return (
-    <input
-      id={id}
-      type="number"
-      min={0}
-      max={365}
-      className="delay"
-      value={draft ?? String(value)}
-      onChange={(event) => {
-        setDraft(event.target.value);
-      }}
-      onBlur={commit}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') commit();
-      }}
-    />
-  );
-}
 
 /** Dependency-ordered tasks with book-by dates. Delays push dependent tasks, with the reason in words. */
 export function TimelineTab() {
@@ -119,9 +87,14 @@ export function TimelineTab() {
               </p>
               <div className="task-tools">
                 <label htmlFor={`delay-${task.id}`}>Delay (days)</label>
-                <DelayInput
+                <CommitInput
                   id={`delay-${task.id}`}
+                  type="number"
+                  min={0}
+                  max={MAX_DELAY_DAYS}
+                  className="delay"
                   value={delay}
+                  parse={parseDelay}
                   onCommit={(days) => {
                     update(
                       setTaskDelay(plan, task.id, days),
