@@ -82,8 +82,9 @@ function compressionFactor(runway: number, longest: number): number {
 }
 
 /**
- * The task's due day after its own delay, pushed later if any dependency
- * slipped, keeping the gap it originally had to that dependency.
+ * The task's due day after its own delay, pushed only as far as needed so it
+ * is never due before a task it waits for. A slip early in the plan does not
+ * drag every later task along with it.
  */
 function dueAfterDependencies(
   template: TaskTemplate,
@@ -95,10 +96,8 @@ function dueAfterDependencies(
   const pushedBy: string[] = [];
   for (const id of template.dependsOn) {
     const dependency = placed.get(id);
-    if (!dependency) continue;
-    const earliest = dependency.due + (planned - dependency.planned);
-    if (earliest > due) {
-      due = earliest;
+    if (dependency && dependency.due > due) {
+      due = dependency.due;
       pushedBy.push(dependency.title);
     }
   }
@@ -108,8 +107,8 @@ function dueAfterDependencies(
 /**
  * Places every task on the calendar. When the event was closer than the
  * longest lead time on the day the plan was made, all lead times shrink by the
- * same factor so the plan starts that day and keeps its order. Delays push
- * dependent tasks by the same gap they originally had. Statuses are judged
+ * same factor so the plan starts that day and keeps its order. A delayed task
+ * pushes a dependent task only if it would otherwise come first. Statuses are judged
  * against `today`, so tasks become overdue as time passes.
  */
 export function buildSchedule(

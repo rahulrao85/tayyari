@@ -76,7 +76,7 @@ describe('applyChangeSet', () => {
 
 describe('diffPlans', () => {
   it('shows moved budget lines, moved tasks and new problems', () => {
-    const before = setTaskDelay({ ...weddingPlan(), eventDate: addDays(TODAY, 200) }, 'venue', 30);
+    const before = setTaskDelay({ ...weddingPlan(), eventDate: addDays(TODAY, 200) }, 'venue', 60);
     const { plan: after } = applyChangeSet(before, {
       ...EMPTY_CHANGES,
       budget: { mode: 'delta', amount: -50000 },

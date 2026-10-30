@@ -186,7 +186,7 @@ describe('timeline tab', () => {
     await user.click(box);
     const delay = screen.getByLabelText('Delay (days)', { selector: '#delay-venue' });
     await user.clear(delay);
-    await user.type(delay, '10{Enter}');
+    await user.type(delay, '30{Enter}');
     expect(screen.getAllByText(/because "Book the venue" slipped/).length).toBeGreaterThan(0);
     await user.type(delay, '{Enter}');
     const decor = screen.getByLabelText('Delay (days)', { selector: '#delay-decor' });

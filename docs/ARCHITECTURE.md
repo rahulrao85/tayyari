@@ -58,7 +58,8 @@ Each occasion has 12–13 task templates with lead times and dependencies (a dep
 When the event is closer than the longest lead time **on the day the plan is made**, every lead time is scaled by the same
 factor, so the plan starts that day and keeps its order. Status is judged against today, so tasks become overdue as days
 pass. A property test checks that a fresh compressed plan is never overdue, impossible or out of order for every occasion and
-every runway from 0 to 400 days. Delays push dependants by their original gap and record which task caused the push.
+every runway from 0 to 400 days. A delay pushes a dependent task only as far as needed so it is never due before what it waits for, and records
+which task caused the push; a slip early on does not drag the last tasks past the event.
 
 ## Model choice
 

@@ -85,17 +85,25 @@ describe('buildSchedule', () => {
     );
   });
 
-  it('propagates a 40-day venue delay to every dependent task', () => {
+  it('pushes a dependent task only as far as the delayed task it waits for', () => {
     const base = { ...weddingPlan(), eventDate: addDays(TODAY, 200) };
-    const delayed = setTaskDelay(base, 'venue', 40);
+    const delayed = setTaskDelay(base, 'venue', 50);
     const schedule = buildSchedule(delayed, TODAY);
-    const venue = schedule.tasks.find((item) => item.id === 'venue');
-    const caterer = schedule.tasks.find((item) => item.id === 'caterer');
-    const photo = schedule.tasks.find((item) => item.id === 'photo');
-    expect(venue?.pushedDays).toBe(40);
-    expect(caterer?.pushedBy).toEqual(['Book the venue']);
-    expect(caterer?.due).toBe(addDays(base.eventDate, -120 + 40));
-    expect(photo?.pushedDays).toBe(0);
+    const find = (id: string) => schedule.tasks.find((item) => item.id === id);
+    expect(find('venue')?.pushedDays).toBe(50);
+    expect(find('venue')?.due).toBe(addDays(base.eventDate, -110));
+    expect(find('caterer')?.pushedBy).toEqual(['Book the venue']);
+    expect(find('caterer')?.due).toBe(addDays(base.eventDate, -110));
+    expect(find('caterer')?.pushedDays).toBe(10);
+    expect(find('decor')?.pushedDays).toBe(0);
+    expect(find('photo')?.pushedDays).toBe(0);
+  });
+
+  it('a short slip early on never drags the last tasks past the event', () => {
+    const base = { ...weddingPlan(), eventDate: addDays(TODAY, 94) };
+    const schedule = buildSchedule(setTaskDelay(base, 'venue', 10), TODAY);
+    expect(statusCounts(schedule).impossible).toBe(0);
+    expect(schedule.tasks.find((item) => item.id === 'payments')?.pushedDays).toBe(0);
   });
 
   it('marks tasks that land after the event as impossible', () => {

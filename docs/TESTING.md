@@ -1,6 +1,6 @@
 # Testing
 
-**203 unit, component and API tests** (Vitest) and **14 end-to-end runs** (Playwright: 7 scenarios × desktop Chrome and a
+**204 unit, component and API tests** (Vitest) and **14 end-to-end runs** (Playwright: 7 scenarios × desktop Chrome and a
 Pixel 7 profile). CI runs all of them on every push, plus format, types, lint, dead-code and bundle-size checks.
 
 ```bash
@@ -23,7 +23,7 @@ gate always passes on a healthy build (a lesson from a past challenge where an a
 | ------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `engine/money-dates`      | 21    | INR parsing ("8 lakh", "2cr", "₹8,00,000"), Indian formatting, date maths across months and leap years; **property test:** largest-remainder parts always sum to the total                                                                                                                          |
 | `engine/budget`           | 15    | exact allocation with priorities and 10% buffer (**property test** over random budgets, occasions, priorities); redistribution respects locks; budget rescale; shortfalls from guests or accepted quotes                                                                                            |
-| `engine/timeline`         | 13    | templates acyclic with dependencies always earlier; compression; **property test:** a fresh compressed plan is never overdue, impossible or out of order for runways 0–400 days; delay propagation with reasons; statuses as time passes                                                            |
+| `engine/timeline`         | 14    | templates acyclic with dependencies always earlier; compression; **property test:** a fresh compressed plan is never overdue, impossible or out of order for runways 0–400 days; delays push dependants only as far as needed, with reasons; statuses as time passes                                |
 | `engine/changes`          | 29    | **the explainer test** (₹50k less, two weeks earlier) revises without restarting; locks block impossible budgets; the before/after diff; the rule-based change reader on 20 phrasings                                                                                                               |
 | `engine/quotes-tradeoffs` | 11    | real cost with guest minimums and GST; flags; comparison; one accepted quote per category; follow-up drafts; all four over-budget options close the gap exactly, or report what is left                                                                                                             |
 | `engine/intake`           | 17    | the description reader for weddings, birthdays and pujas; dates like "mid-Feb" and "in two months"; only missing questions are asked; AI and rule drafts merge safely                                                                                                                               |
